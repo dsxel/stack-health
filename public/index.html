@@ -1,0 +1,225 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Stack Health</title>
+    <style>
+      :root{
+        --bg:#0b1220;--fg:#e6eef8;--muted:#94a3b8;
+        --green:#10b981;--yellow:#f59e0b;--red:#ef4444;
+      }
+      html,body{height:100%;margin:0}
+      body{font-family:Inter,system-ui,Arial;background:var(--bg);color:var(--fg);display:flex;align-items:flex-start;justify-content:center;padding:24px}
+      .app{width:100%;max-width:880px}
+      header{display:flex;align-items:baseline;gap:12px;margin-bottom:18px}
+      h1{font-size:18px;margin:0}
+      .meta{color:var(--muted);font-size:13px}
+      .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+      .pkg{background:#071028;padding:8px;border-radius:10px;box-shadow:0 3px 10px rgba(2,6,23,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:56px;text-align:center}
+      .label{font-weight:600;padding:4px 8px;border-radius:999px;color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
+      .ver{margin-top:6px;color:var(--muted);font-size:11px;text-align:center}
+      .status-green{background:linear-gradient(180deg,var(--green),#059669)}
+      .status-yellow{background:linear-gradient(180deg,var(--yellow),#b45309)}
+      .status-red{background:linear-gradient(180deg,var(--red),#dc2626)}
+      .status-pending{background:linear-gradient(180deg,#475569,#334155)}
+      .loader{display:inline-block;font-size:11px;color:var(--muted);letter-spacing:1px}
+      footer{margin-top:18px;color:var(--muted);font-size:13px}
+      .empty{color:var(--muted);text-align:center;padding:28px}
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Stack Health</h1>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button id="refreshBtn" style="background:#0b1228;border:1px solid #1f2a44;color:var(--muted);padding:6px 10px;border-radius:8px;cursor:pointer">Refresh</button>
+          <label style="color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px">
+            Auto
+            <select id="autoInterval" style="background:#0f172a;color:var(--fg);border:1px solid #334155;border-radius:6px;padding:4px 8px;font-size:12px">
+              <option value="0">Off</option>
+              <option value="60000">1m</option>
+              <option value="300000">5m</option>
+              <option value="600000">10m</option>
+              <option value="900000">15m</option>
+            </select>
+          </label>
+          <div class="meta" id="generated">Loading…</div>
+        </div>
+      </header>
+
+      <div id="runtime" style="margin-bottom:12px;display:grid;grid-auto-flow:column;gap:8px"></div>
+
+      <div id="packages" class="grid"></div>
+
+      <div id="no-packages" class="empty" style="display:none">No package data available. Run `node scripts/check-stack.js` to generate the report.</div>
+
+      <footer>Colors: <span style="color:var(--green)">up-to-date</span>, <span style="color:var(--yellow)">outdated</span>, <span style="color:var(--red)">issue</span></footer>
+    </div>
+
+    <script>
+      function statusClassFor(status){
+        if(!status) return 'status-red';
+        if(status === 'up-to-date' || status === 'ok' || status === 'installed' || status === 'listening' || status === 'online') return 'status-green';
+        if(status === 'outdated') return 'status-yellow';
+        return 'status-red';
+      }
+
+      async function render(showLoading=true){
+        try{
+          document.getElementById('no-packages').style.display = 'none';
+          if (showLoading) document.getElementById('generated').textContent = 'Loading…';
+          const res = await fetch('/stack-health.json?_=' + Date.now());
+          if(!res.ok){ document.getElementById('no-packages').style.display = 'block'; return }
+          const data = await res.json();
+          document.getElementById('generated').textContent = new Date(data.generatedAt).toLocaleString();
+
+          const grid = document.getElementById('packages');
+          grid.innerHTML = '';
+          const pkgs = data.packages || [];
+          if(pkgs.length === 0){ document.getElementById('no-packages').style.display = 'block'; return }
+
+          for(const p of pkgs){
+            const div = document.createElement('div');
+            div.className = 'pkg';
+            const cls = statusClassFor(p.status);
+            const a = document.createElement('a');
+            a.href = 'https://www.npmjs.com/package/' + encodeURIComponent(p.package);
+            a.target = '_blank'; a.rel = 'noopener';
+            a.style.textDecoration = 'none';
+            const lbl = document.createElement('div');
+            lbl.className = 'label ' + cls;
+            lbl.textContent = p.package;
+            a.appendChild(lbl);
+            const ver = document.createElement('div');
+            ver.className = 'ver';
+            if (p.status === 'pending') {
+              ver.innerHTML = '<span class="loader">Updating...</span>';
+            } else {
+              ver.textContent = (p.status === 'up-to-date') ? (p.latest || p.declared || '') : (p.declared || '') + (p.latest ? ' → ' + p.latest : '');
+            }
+            div.appendChild(a);
+            div.appendChild(ver);
+            grid.appendChild(div);
+          }
+
+          // runtime pills
+          const rt = document.getElementById('runtime');
+          rt.innerHTML = '';
+          for (const r of data.runtime || []){
+            const div = document.createElement('div');
+            div.className = 'pkg';
+            div.style.minWidth = '140px';
+            const cls = statusClassFor(r.status);
+            const lbl = document.createElement('div');
+            lbl.className = 'label ' + cls;
+            lbl.textContent = r.name;
+
+            const ver = document.createElement('div');
+            ver.className = 'ver';
+            ver.textContent = r.actual || r.status || '';
+
+            // show shortened path (basename) with tooltip for full path
+            let pathEl = null;
+            if (r.path) {
+              pathEl = document.createElement('div');
+              pathEl.className = 'ver';
+              pathEl.style.fontSize = '10px';
+              pathEl.style.color = 'var(--muted)';
+              const parts = r.path.split(/\\\\|\\/);
+              pathEl.textContent = parts[parts.length - 1] || r.path;
+              pathEl.title = r.path;
+            }
+
+            div.appendChild(lbl);
+            div.appendChild(ver);
+            if (pathEl) div.appendChild(pathEl);
+            rt.appendChild(div);
+          }
+        }catch(e){
+          document.getElementById('no-packages').style.display = 'block';
+          console.error(e);
+        }
+      }
+
+      const refreshBtn = document.getElementById('refreshBtn');
+      const intervalSelect = document.getElementById('autoInterval');
+      let polling = null;
+      let autoRefreshTimer = null;
+
+      function statusClassFor(status){
+        if(!status) return 'status-red';
+        if(status === 'up-to-date' || status === 'ok' || status === 'installed' || status === 'listening' || status === 'online') return 'status-green';
+        if(status === 'pending') return 'status-pending';
+        if(status === 'outdated') return 'status-yellow';
+        return 'status-red';
+      }
+
+      async function pollRefreshStatus() {
+        try {
+          const res = await fetch('/refresh-status');
+          if (!res.ok) return;
+          const status = await res.json();
+          if (!status.running) {
+            if (polling) {
+              clearInterval(polling);
+              polling = null;
+              refreshBtn.disabled = false;
+              refreshBtn.textContent = 'Refresh';
+            }
+          }
+          if (status.error) {
+            console.error(status.error);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      async function startRefresh() {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+        try {
+          const r = await fetch('/refresh', { method: 'POST' });
+          if (!r.ok) {
+            console.error('Refresh failed');
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = 'Refresh';
+            return;
+          }
+          await render(false);
+          if (!polling) {
+            polling = setInterval(async () => {
+              await render(false);
+              await pollRefreshStatus();
+            }, 800);
+          }
+        } catch (e) {
+          console.error(e);
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = 'Refresh';
+        }
+      }
+
+      function setAutoRefresh(interval) {
+        if (autoRefreshTimer) {
+          clearInterval(autoRefreshTimer);
+          autoRefreshTimer = null;
+        }
+        if (interval > 0) {
+          autoRefreshTimer = setInterval(() => {
+            startRefresh();
+          }, interval);
+        }
+      }
+
+      refreshBtn.addEventListener('click', startRefresh);
+      intervalSelect.addEventListener('change', (event) => {
+        setAutoRefresh(Number(event.target.value));
+      });
+
+      render();
+      setAutoRefresh(Number(intervalSelect.value));
+    </script>
+  </body>
+</html>

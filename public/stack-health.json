@@ -1,0 +1,140 @@
+{
+  "generatedAt": "2026-07-21T08:22:07.196Z",
+  "runtime": [
+    {
+      "name": "node",
+      "required": "22",
+      "actual": "24.12.0",
+      "status": "ok"
+    },
+    {
+      "name": "docker",
+      "required": "installed",
+      "actual": "Docker version 29.1.3, build f52814d",
+      "status": "installed"
+    },
+    {
+      "name": "psql",
+      "required": "installed",
+      "actual": "psql (PostgreSQL) 18.4",
+      "path": "C:\\Program Files\\PostgreSQL\\18\\bin\\psql.exe",
+      "status": "installed"
+    },
+    {
+      "name": "MongoDB",
+      "required": "online",
+      "actual": "127.0.0.1:27017",
+      "status": "online"
+    },
+    {
+      "name": "MySQL",
+      "required": "online",
+      "actual": "127.0.0.1:3306",
+      "status": "offline"
+    }
+  ],
+  "packages": [
+    {
+      "package": "react",
+      "declared": "19.2.7",
+      "latest": "19.2.7",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "react-dom",
+      "declared": "19.2.7",
+      "latest": "19.2.7",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "react-router-dom",
+      "declared": "7.18.1",
+      "latest": "7.18.1",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "axios",
+      "declared": "1.18.1",
+      "latest": "1.18.1",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "typescript",
+      "declared": "7.0.2",
+      "latest": "7.0.2",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "@nestjs/core",
+      "declared": "11.1.28",
+      "latest": "11.1.28",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "@nestjs/common",
+      "declared": "11.1.28",
+      "latest": "11.1.28",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "@nestjs/platform-express",
+      "declared": "11.1.28",
+      "latest": "11.1.28",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "pg",
+      "declared": "8.22.0",
+      "latest": "8.22.0",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "redis",
+      "declared": "6.1.0",
+      "latest": "6.1.0",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "bullmq",
+      "declared": "5.80.9",
+      "latest": "5.80.9",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "socket.io",
+      "declared": "4.9.0",
+      "latest": "4.8.3",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "mongodb",
+      "declared": "7.5.0",
+      "latest": "7.5.0",
+      "latestTime": null,
+      "status": "up-to-date"
+    },
+    {
+      "package": "mysql2",
+      "declared": "3.23.1",
+      "latest": "3.23.1",
+      "latestTime": null,
+      "status": "up-to-date"
+    }
+  ],
+  "progress": {
+    "current": 14,
+    "total": 14
+  }
+}

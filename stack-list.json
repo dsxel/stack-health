@@ -1,0 +1,16 @@
+[
+  { "package": "react", "current": "19.2.7" },
+  { "package": "react-dom", "current": "19.2.7" },
+  { "package": "react-router-dom", "current": "7.18.1" },
+  { "package": "axios", "current": "1.18.1" },
+  { "package": "typescript", "current": "7.0.2" },
+  { "package": "@nestjs/core", "current": "11.1.28" },
+  { "package": "@nestjs/common", "current": "11.1.28" },
+  { "package": "@nestjs/platform-express", "current": "11.1.28" },
+  { "package": "pg", "current": "8.22.0" },
+  { "package": "redis", "current": "6.1.0" },
+  { "package": "bullmq", "current": "5.80.9" },
+  { "package": "socket.io", "current": "4.9.0" }
+  ,{ "package": "mongodb", "current": "7.5.0" }
+  ,{ "package": "mysql2", "current": "3.23.1" }
+]

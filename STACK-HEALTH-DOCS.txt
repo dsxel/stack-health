@@ -1,0 +1,220 @@
+Stack Health Project Documentation
+=================================
+
+Overview
+--------
+Stack Health is a lightweight local development health checker for Node.js projects. It scans tracked npm packages, runtime dependencies, and local services, writes a JSON report, and serves a compact browser UI for inspection.
+
+File-by-File Summary
+--------------------
+
+1. `stack-list.json`
+   - Purpose: Lists npm packages tracked by the checker.
+   - Structure: Array of package objects with `package` and `current` version fields.
+   - Role: Provides the package names and declared versions used for comparison with npm registry data.
+
+2. `package.json`
+   - Purpose: Defines the npm project and available scripts.
+   - Scripts:
+     - `check-stack`: runs `node scripts/check-stack.js`.
+     - `start`: runs `node scripts/server.js`.
+   - Role: Makes checker and server execution convenient through npm.
+
+3. `scripts/check-stack.js`
+   - Purpose: Generates `public/stack-health.json` with runtime and package health data.
+   - Constants:
+     - `OUT_PATH`: path to output JSON.
+     - `STACK_LIST_PATH`: path to tracked package list.
+     - `PACKAGE_JSON_PATH`: path to local `package.json`.
+
+   - Functions:
+     - `fetchJson(url)`
+       - Fetches JSON over HTTPS and parses the response.
+       - Used to retrieve npm package metadata from the registry.
+     - `getCommandVersion(command, args)`
+       - Executes a command and returns its stdout text.
+       - Returns `null` if the command fails.
+       - Used for Docker and CLI version detection.
+     - `findPsqlVersion()`
+       - Tries `psql --version` directly.
+       - Falls back to common Windows PostgreSQL install paths.
+       - Returns `{ version, path }` or `null`.
+     - `compareVersionMajor(actual, required)`
+       - Compares only the major semver portion of two versions.
+       - Used to verify Node.js version compatibility.
+     - `normalizeVersion(v)`
+       - Removes semver prefixes such as `^`, `~`, `>=`, and whitespace.
+       - Normalizes declared version strings before comparison.
+     - `compareSemver(a, b)`
+       - Compares major, minor, and patch numeric parts.
+       - Returns `1`, `0`, or `-1`.
+     - `writeReport(report)`
+       - Writes the health report JSON to disk with a timestamp.
+     - `readPackageJsonVersions()`
+       - Reads dependencies from `package.json` and returns a combined map.
+       - Includes `dependencies`, `devDependencies`, `peerDependencies`, and `optionalDependencies`.
+     - `checkTcpPort(host, port, timeout)`
+       - Attempts a TCP connection to detect whether a service is listening.
+       - Returns `true` or `false`.
+
+   - Main flow:
+     - Loads tracked packages from `stack-list.json`.
+     - Loads local dependency versions from `package.json`.
+     - Detects runtime status for:
+       - `node` version
+       - `docker` installation
+       - `psql` availability
+       - MongoDB service on `127.0.0.1:27017`
+       - MySQL service on `127.0.0.1:3306`
+     - Initializes `report.packages` with `pending` status.
+     - Writes an initial report before package fetches.
+     - Fetches latest npm package versions sequentially.
+     - Updates package `status` to `up-to-date`, `outdated`, or `unknown`.
+     - Writes incremental progress updates after each package check.
+
+   - Output includes:
+     - `generatedAt`: report timestamp.
+     - `runtime`: array of runtime status entries.
+     - `packages`: array of package health objects.
+     - `progress`: current/total progress.
+
+4. `scripts/server.js`
+   - Purpose: Hosts the UI and coordinates refresh behavior.
+   - Constants:
+     - `PUBLIC_DIR`: directory for static assets.
+     - `PORT`: HTTP server port.
+   - State:
+     - `refreshProcess`: currently running background checker.
+     - `refreshError`: error message from a failed refresh.
+
+   - Functions:
+     - `sendFile(res, filePath, contentType)`
+       - Reads and sends files with the correct MIME type.
+       - Returns `404` when files are missing.
+
+   - Routes:
+     - `/` and `/index.html`
+       - Serve the UI page.
+     - `/stack-health.json`
+       - Serves the generated health report JSON.
+     - `/refresh`
+       - Starts `scripts/check-stack.js` in a non-blocking child process.
+       - Returns `409` if refresh is already running.
+       - Returns `202` when refresh begins.
+       - Captures process exit status and errors.
+     - `/refresh-status`
+       - Returns JSON with `running` and `error`.
+     - Static assets
+       - Serves any file under `public/` by extension.
+
+   - Role: Enables the UI to refresh health data without blocking the server.
+
+5. `public/index.html`
+   - Purpose: Renders the health status UI and manages client-side refresh.
+   - UI elements:
+     - `Refresh` button
+     - `Auto` refresh interval selector
+     - Generated timestamp label
+     - Runtime status pill row
+     - Package status grid
+     - Empty state message when no data exists.
+
+   - Functions:
+     - `statusClassFor(status)`
+       - Maps status values to CSS classes.
+       - Supports `up-to-date`, `ok`, `installed`, `listening`, `online`, `pending`, `outdated`, and default issue state.
+     - `render(showLoading=true)`
+       - Fetches `/stack-health.json`.
+       - Renders package cards and runtime cards.
+       - Displays `Updating...` for pending package entries.
+       - Updates the generated timestamp.
+     - `pollRefreshStatus()`
+       - Fetches `/refresh-status` repeatedly during a refresh.
+       - Re-enables the refresh button when background work completes.
+     - `startRefresh()`
+       - Sends a `POST /refresh` request.
+       - Disables the button and updates UI state.
+       - Starts polling and rerenders during refresh.
+     - `setAutoRefresh(interval)`
+       - Starts or clears an interval timer.
+       - Triggers `startRefresh()` automatically.
+
+   - Behavior:
+     - Renders current health data on page load.
+     - Supports manual refresh and auto-refresh with intervals.
+     - Shows package update progress and service availability clearly.
+
+6. `public/stack-health.json`
+   - Purpose: Stores the generated report consumed by the UI.
+   - Role: Source of runtime and package status data for the browser.
+
+7. `README.md`
+   - Purpose: Contains high-level project documentation and usage guidance.
+   - Content:
+     - Project overview.
+     - `check-stack` and `server` commands.
+     - Notes on runtime tools like `psql`.
+     - Windows PostgreSQL installation helper guidance.
+
+What Was Implemented
+-------------------
+- Package health tracking from `stack-list.json`.
+- Automatic declared version detection from `package.json`.
+- Runtime checks for Node.js, Docker, PostgreSQL CLI, MongoDB, and MySQL.
+- Incremental report writing with `pending` status for ongoing checks.
+- Background refresh support via `POST /refresh` and polling via `/refresh-status`.
+- Compact browser UI with colored status pills and auto-refresh intervals.
+
+Custom Agent Support
+--------------------
+- A repository-specific agent definition is stored in `.agent.md`.
+- It is intended for maintenance tasks related to the Stack Health checker, server, UI, and generated report.
+- The agent should be used when debugging issues in this project, updating runtime checks, or adjusting the local workflow.
+
+Useful Commands
+---------------
+1. Generate or refresh the report:
+   ```bash
+   node scripts/check-stack.js
+   ```
+2. Start the UI server:
+   ```bash
+   node scripts/server.js
+   ```
+3. Run the project via npm shortcuts:
+   ```bash
+   npm run check-stack
+   npm start
+   ```
+4. Windows PostgreSQL helper:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts/install-psql-windows.ps1
+   ```
+5. Agent-focused troubleshooting workflow:
+   ```bash
+   node scripts/check-stack.js
+   node scripts/server.js
+   ```
+
+How to Use
+----------
+1. Generate or refresh the report:
+   ```bash
+   node scripts/check-stack.js
+   ```
+2. Start the UI server:
+   ```bash
+   node scripts/server.js
+   ```
+3. Open the browser:
+   ```text
+   http://localhost:5001
+   ```
+
+Notes
+-----
+- `scripts/check-stack.js` writes the report to `public/stack-health.json`.
+- `scripts/server.js` serves the UI and exposes refresh endpoints.
+- `public/index.html` renders the report and manages auto-refresh.
+- If `psql` is missing, install the PostgreSQL CLI or ensure it is available on PATH.
+- Use `.agent.md` as a quick reference when handing off maintenance work or debugging this repository.
