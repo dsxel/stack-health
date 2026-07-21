@@ -44,7 +44,7 @@
               <option value="900000">15m</option>
             </select>
           </label>
-          <div class="meta" id="generated">Loading…</div>
+          <div class="meta" id="lastRefresh">Last refresh: —</div>
         </div>
       </header>
 
@@ -68,13 +68,13 @@
       async function render(showLoading=true, data=null){
         try{
           document.getElementById('no-packages').style.display = 'none';
-          if (showLoading) document.getElementById('generated').textContent = 'Loading…';
+          if (showLoading) document.getElementById('lastRefresh').textContent = 'Refreshing...';
           if (!data) {
             const res = await fetch('/stack-health.json?_=' + Date.now());
             if(!res.ok){ document.getElementById('no-packages').style.display = 'block'; return }
             data = await res.json();
           }
-          document.getElementById('generated').textContent = new Date(data.generatedAt).toLocaleString();
+          document.getElementById('lastRefresh').textContent = 'Last refresh: ' + new Date(data.generatedAt).toLocaleString();
 
           const grid = document.getElementById('packages');
           grid.innerHTML = '';
@@ -86,8 +86,23 @@
             div.className = 'pkg';
             const cls = statusClassFor(p.status);
             const a = document.createElement('a');
-            a.href = 'https://www.npmjs.com/package/' + encodeURIComponent(p.package);
+            a.href = '/package/' + encodeURIComponent(p.package);
             a.target = '_blank'; a.rel = 'noopener';
+            a.addEventListener('click', async (ev) => {
+              ev.preventDefault();
+              const popup = window.open('', '_blank', 'width=640,height=420');
+              try {
+                const res = await fetch('/stack-health.json?_=' + Date.now());
+                if (!res.ok) throw new Error('no report');
+                const data = await res.json();
+                const pkg = (data.packages || []).find(x => x.package === p.package);
+                const content = `<!doctype html><html><head><meta charset="utf-8"><title>${p.package}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Inter,system-ui,Arial;background:#071028;color:#e6eef8;padding:18px}a{color:#7dd3fc}</style></head><body><h1>${p.package}</h1><p><strong>Declared:</strong> ${pkg && pkg.declared?pkg.declared:'—'}</p><p><strong>Latest:</strong> ${pkg && pkg.latest?pkg.latest:'—'}</p><p><strong>Status:</strong> ${pkg && pkg.status?pkg.status:'—'}</p>${pkg && pkg.latestTime?`<p><strong>Published:</strong> ${pkg.latestTime}</p>`:''}<p><a href="https://www.npmjs.com/package/${encodeURIComponent(p.package)}" target="_blank" rel="noopener">Open on npm</a></p><p><a href="#" onclick="window.close();return false">Close</a></p></body></html>`;
+                popup.document.write(content);
+                popup.document.close();
+              } catch (e) {
+                popup.location = 'https://www.npmjs.com/package/' + encodeURIComponent(p.package);
+              }
+            });
             a.style.textDecoration = 'none';
             const lbl = document.createElement('div');
             lbl.className = 'label ' + cls;
@@ -146,10 +161,9 @@
 
       const refreshBtn = document.getElementById('refreshBtn');
       const intervalSelect = document.getElementById('autoInterval');
-      let polling = null;
       let autoRefreshTimer = null;
       let lastKnownReport = null;
-      let lastProgressKey = null;
+      let eventSource = null;
 
       function statusClassFor(status){
         if(!status) return 'status-red';
@@ -159,43 +173,43 @@
         return 'status-red';
       }
 
-      async function pollRefreshStatus() {
-        try {
-          const res = await fetch('/refresh-status');
-          if (!res.ok) return;
-          const status = await res.json();
-          const progressKey = status.progress ? `${status.progress.current}:${status.progress.total}` : 'idle';
+      function connectSse() {
+        if (typeof EventSource === 'undefined' || eventSource) return;
 
-          if (status.report && progressKey !== lastProgressKey) {
-            lastKnownReport = status.report;
-            lastProgressKey = progressKey;
-            await render(false, status.report);
+        eventSource = new EventSource('/events');
+        eventSource.addEventListener('refresh-status', (event) => {
+          try {
+            const status = JSON.parse(event.data);
+            if (status.report) {
+              lastKnownReport = status.report;
+              render(false, status.report);
+              const stamp = document.getElementById('lastRefresh');
+              if (stamp && status.report.generatedAt) {
+                stamp.textContent = 'Last refresh: ' + new Date(status.report.generatedAt).toLocaleString();
+              }
+            }
+            refreshBtn.disabled = Boolean(status.running);
+            refreshBtn.textContent = status.running ? 'Refreshing...' : 'Refresh';
+            if (status.error) {
+              console.error(status.error);
+            }
+          } catch (e) {
+            console.error(e);
           }
+        });
 
-          if (!status.running) {
-            if (polling) {
-              clearInterval(polling);
-              polling = null;
-              refreshBtn.disabled = false;
-              refreshBtn.textContent = 'Refresh';
-            }
-            if (lastKnownReport && progressKey !== lastProgressKey) {
-              lastProgressKey = progressKey;
-              await render(false, lastKnownReport);
-            }
-          }
-          if (status.error) {
-            console.error(status.error);
-          }
-        } catch (e) {
-          console.error(e);
-        }
+        eventSource.onerror = () => {
+          eventSource.close();
+          eventSource = null;
+          setTimeout(connectSse, 2000);
+        };
       }
 
       async function startRefresh() {
         if (refreshBtn.disabled) return;
         refreshBtn.disabled = true;
         refreshBtn.textContent = 'Refreshing...';
+        connectSse();
         try {
           const r = await fetch('/refresh', { method: 'POST' });
           if (!r.ok) {
@@ -208,11 +222,6 @@
             await render(false, lastKnownReport);
           } else {
             await render(false);
-          }
-          if (!polling) {
-            polling = setInterval(async () => {
-              await pollRefreshStatus();
-            }, 5000);
           }
         } catch (e) {
           console.error(e);
@@ -239,6 +248,7 @@
       });
 
       render();
+      connectSse();
       setAutoRefresh(Number(intervalSelect.value));
     </script>
   </body>
