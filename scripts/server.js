@@ -8,6 +8,17 @@ const PORT = process.env.PORT || 5001;
 let refreshProcess = null;
 let refreshError = null;
 
+function readLatestReport() {
+  const reportPath = path.join(PUBLIC_DIR, 'stack-health.json');
+  if (!fs.existsSync(reportPath)) return null;
+
+  try {
+    return JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  } catch (err) {
+    return null;
+  }
+}
+
 function sendFile(res, filePath, contentType) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
@@ -58,8 +69,15 @@ const server = http.createServer((req, res) => {
   }
 
   if (url === '/refresh-status') {
+    const report = readLatestReport();
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ running: Boolean(refreshProcess), error: refreshError }));
+    return res.end(JSON.stringify({
+      running: Boolean(refreshProcess),
+      error: refreshError,
+      progress: report && report.progress ? report.progress : null,
+      generatedAt: report && report.generatedAt ? report.generatedAt : null,
+      report
+    }));
   }
 
   // Serve static assets

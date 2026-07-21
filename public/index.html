@@ -65,13 +65,15 @@
         return 'status-red';
       }
 
-      async function render(showLoading=true){
+      async function render(showLoading=true, data=null){
         try{
           document.getElementById('no-packages').style.display = 'none';
           if (showLoading) document.getElementById('generated').textContent = 'Loading…';
-          const res = await fetch('/stack-health.json?_=' + Date.now());
-          if(!res.ok){ document.getElementById('no-packages').style.display = 'block'; return }
-          const data = await res.json();
+          if (!data) {
+            const res = await fetch('/stack-health.json?_=' + Date.now());
+            if(!res.ok){ document.getElementById('no-packages').style.display = 'block'; return }
+            data = await res.json();
+          }
           document.getElementById('generated').textContent = new Date(data.generatedAt).toLocaleString();
 
           const grid = document.getElementById('packages');
@@ -146,6 +148,8 @@
       const intervalSelect = document.getElementById('autoInterval');
       let polling = null;
       let autoRefreshTimer = null;
+      let lastKnownReport = null;
+      let lastProgressKey = null;
 
       function statusClassFor(status){
         if(!status) return 'status-red';
@@ -160,12 +164,24 @@
           const res = await fetch('/refresh-status');
           if (!res.ok) return;
           const status = await res.json();
+          const progressKey = status.progress ? `${status.progress.current}:${status.progress.total}` : 'idle';
+
+          if (status.report && progressKey !== lastProgressKey) {
+            lastKnownReport = status.report;
+            lastProgressKey = progressKey;
+            await render(false, status.report);
+          }
+
           if (!status.running) {
             if (polling) {
               clearInterval(polling);
               polling = null;
               refreshBtn.disabled = false;
               refreshBtn.textContent = 'Refresh';
+            }
+            if (lastKnownReport && progressKey !== lastProgressKey) {
+              lastProgressKey = progressKey;
+              await render(false, lastKnownReport);
             }
           }
           if (status.error) {
@@ -177,6 +193,7 @@
       }
 
       async function startRefresh() {
+        if (refreshBtn.disabled) return;
         refreshBtn.disabled = true;
         refreshBtn.textContent = 'Refreshing...';
         try {
@@ -187,12 +204,15 @@
             refreshBtn.textContent = 'Refresh';
             return;
           }
-          await render(false);
+          if (lastKnownReport) {
+            await render(false, lastKnownReport);
+          } else {
+            await render(false);
+          }
           if (!polling) {
             polling = setInterval(async () => {
-              await render(false);
               await pollRefreshStatus();
-            }, 800);
+            }, 5000);
           }
         } catch (e) {
           console.error(e);
